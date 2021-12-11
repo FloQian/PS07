@@ -1,0 +1,110 @@
+---
+title: "Worldwide AI Publications"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Code Chunks
+
+
+```{r cars}
+library(tidyverse)
+library(fivethirtyeight)
+library(leaflet)
+library(sf)
+library(maps)
+Global_AI_Index <- read.csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vQJEgGNs1IzkJd1wL-pwmmcB2RK_EHw62BSmkM8SG_KVjJTZEgvu41DO7FsyCcdfEabZrpxbI053x_X/pub?output=csv")
+Sectors <- read.csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vQ2xK32BQqjKA7x8DdoQ3XS8lrQqd0y2a6D9rwJycBAAyzP5v-XEh15mO6tVoU-KlDRxeLfRN8JQL2I/pub?output=csv")
+Academic_Corporate_Collaboration <- read.csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vRQhONObYbYwE0jJJoJkmtY5UXxyVhBblUJTMeTVE2x4wyAgfLcFKk6rzOd_phJ2EDg4uAzE0jORnB_/pub?output=csv")
+Gov_Readiness_Index <- read.csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vRFDQqqUbDPRY-iiE8enf0xKubvi3TTaOdvvg-cO6Fr7n_eZlzmQ6aoY7JmF9-CLy67CxVlWqqgsKZT/pub?output=csv")
+
+AI_Corp <- Global_AI_Index %>% 
+  inner_join(Academic_Corporate_Collaboration, by = c("Country.Code", "Year"))
+
+AI_Gov <- Global_AI_Index %>% 
+ full_join(Gov_Readiness_Index, by = c("Country.Name", "Year"))
+
+Global_AI <- Global_AI_Index %>% 
+  rename(region = Country.Name) %>% 
+  select(region, Number.of.AI.Publications, Year) %>% 
+  group_by(region) %>% 
+  summarise(Mean_Pub = mean(Number.of.AI.Publications))
+world <- map_data("world")
+
+AI_World <- Global_AI %>% 
+  inner_join(world, by = "region") %>%
+  filter(!is.na(region), !is.na(Mean_Pub))
+
+AI_World_sf <- AI_World %>% 
+  st_as_sf(coords = c("long", "lat"), crs = 4326)
+```
+
+
+```{r}
+China <- Global_AI_Index %>% 
+  filter(Country.Code == "CHN")
+USA <- Global_AI_Index %>% 
+  filter(Country.Code == "USA")
+Australia <- Global_AI_Index %>% 
+  filter(Country.Code == "AUS")
+Canada <- Global_AI_Index %>% 
+  filter(Country.Code == "CAN")
+AI_Index <- 
+  China %>% 
+  full_join(USA)
+AI_Index <- 
+  AI_Index %>% 
+  full_join(Australia)
+AI_Index <- 
+  AI_Index %>% 
+  full_join(Canada)
+AI_Index <- AI_Index %>% 
+  filter(!is.na(FWCI), !is.na(Number.of.AI.Publications)) %>% 
+  group_by(Country.Name, Year) %>% 
+  summarise(Mean_AI_Pub = mean(Number.of.AI.Publications),
+            Mean_FWCI = mean(FWCI))
+```
+
+
+## Map
+
+```{r, echo=FALSE, warning = FALSE}
+ggplot() +
+  geom_map(data = AI_World, map = AI_World, 
+           aes(long, lat, map_id = region,  fill = Mean_Pub),
+           color = "black", size = 0.1) +
+  scale_fill_gradient(low="blue", high="brown3", na.value = NA, name = "Average Number of AI Publications") + 
+  labs(x = "Longitude (°)",
+       y = "Latitude (°)") +
+  ggtitle ("Average Number of AI Publications Around the World by Country",
+           subtitle = "From Year 1998 to 2019")
+```
+
+
+## Plots
+
+```{r pressure, echo=FALSE}
+ggplot(data = AI_Index, mapping = aes(x = Year, y = Mean_AI_Pub, color = Country.Name)) +
+  geom_point(size = 1, alpha = 1) +
+  labs(x = "Year",
+       y = "Average Number of AI Publications") +
+  scale_color_manual(values = c("chartreuse4", "darkorange1","firebrick1","dodgerblue4")) +
+  geom_smooth(span = 0.5, se = FALSE) + 
+  guides(colour=guide_legend("Country"), size=guide_legend(""))+
+  ggtitle ("Average Number of AI Publications in Australia, Canada, China and the USA",
+           subtitle = "In Each Year From 1998 to 2019")
+ggplot(data = AI_Index, aes(x = Year, y = Mean_FWCI, fill = Country.Name)) +
+  geom_bar(stat = "identity", binwidth = 3) +
+  labs(x = "Year",
+       y = "Field Weighted Citation Impact (FWCI)") +
+  scale_fill_manual(values = c("chartreuse4", "darkorange1","firebrick1","dodgerblue4")) +
+  guides(colour=guide_legend("Country"), size=guide_legend("")) +
+ggtitle ("Average Field-weighted Citation Impact of AI Publications 
+         in Australia, Canada, China and the USA",
+           subtitle = "In Each Year From 1998 to 2019")
+```
+
